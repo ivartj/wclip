@@ -127,6 +127,7 @@ int main(int argc, char *argv[])
 
 	if(file == NULL) {
 		fprintf(stderr, "wclip: %s", strerror(errno));
+		exit(errno);
 	}
 	err = fsetclip(file);
 
