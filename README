@@ -1,0 +1,9 @@
+wclip is an xclip-inspired command-line tool for interacting with the
+clipboard on Microsoft Windows.
+
+Usage: wclip [ -o | <file> ]
+
+With no options, wclip copies standard input to clipboard.
+
+ -o	Write clipboard to standard output.
+ <file>	Copy file to clipboard.

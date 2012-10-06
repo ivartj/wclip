@@ -1,8 +1,10 @@
-#define WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN 
 
 #include <windows.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <errno.h>
+#include <string.h>
 
 void closeclip(void);
 int openclip(void);
@@ -87,6 +89,11 @@ void *freadtobuffer(FILE *in, size_t *retsize)
 	return buffer;
 }
 
+void usage(FILE *out)
+{
+	fprintf(out, "wclip [ -o | <file> ]\n");
+}
+
 int main(int argc, char *argv[])
 {
 	int err, i;
@@ -94,7 +101,7 @@ int main(int argc, char *argv[])
 
 	err = openclip();
 	if(err) {
-		fprintf(stderr, "Failed to open clipboard.\n");
+		fprintf(stderr, "Failed to open clipboard.");
 		exit(1);
 	}
 	atexit(closeclip);
@@ -109,7 +116,18 @@ int main(int argc, char *argv[])
 		exit(err);
 	}
 
-	file = fopen(argv[1], "r");
+	if(!strcmp(argv[1], "-h") || !strcmp(argv[1], "--help")) {
+		usage(stdout);
+		exit(0);
+	}
+
+	/* The binary flag prevents carriage returns from being omitted
+	 * in read operations. */
+	file = fopen(argv[1], "rb");
+
+	if(file == NULL) {
+		fprintf(stderr, "wclip: %s", strerror(errno));
+	}
 	err = fsetclip(file);
 
 	exit(err);
