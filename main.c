@@ -50,6 +50,8 @@ int fsetclip(FILE *in)
 	int retval = 1;
 
 	buffer = freadtobuffer(in, &bufsize);
+	if(buffer == NULL)
+		return 1;
 
 	hglb = GlobalAlloc(GMEM_MOVEABLE, bufsize);
 	if(hglb == NULL) goto ret;
@@ -72,20 +74,42 @@ ret:
 
 void *freadtobuffer(FILE *in, size_t *retsize)
 {
-	void *buffer, *pos;
+	char *buffer;
 	size_t size = 256, offset = 0;
-	buffer = pos = malloc(size);
+	int c, prev = 0;
+
+	buffer = malloc(size);
+
 	for(;;) {
-		offset += fread(pos, 1, size + buffer - pos, in);
-		if(offset < size)
+		c = fgetc(in);
+
+		if(c == EOF)
 			break;
-		buffer = realloc(buffer, size *= 2);
-		pos = buffer + offset;
+		
+		if(c == '\n' && prev != '\r') {
+			buffer[offset++] = '\r';
+			if(offset == size)
+				buffer = realloc(buffer, size *= 2);
+		}
+
+		buffer[offset++] = c;
+		if(offset == size)
+			buffer = realloc(buffer, size *= 2);
+
+		prev = c;
 	}
-	if(offset)
-		((char *)buffer)[offset] = '\0';
+
+	if(offset == 0) {
+		free(buffer);
+		return NULL;
+	}
+
+	buffer = realloc(buffer, offset + 1);
+	((char *)buffer)[offset] = '\0';
+
 	if(retsize != NULL)
-		*retsize = size;
+		*retsize = offset + 1;
+
 	return buffer;
 }
 
