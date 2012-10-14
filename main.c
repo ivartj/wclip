@@ -12,6 +12,8 @@ int fprintclip(FILE *out);
 int fsetclip(FILE *in);
 void *freadtobuffer(FILE *in, size_t *retsize);
 
+char *command = "wclip";
+
 void closeclip(void)
 {
 	CloseClipboard();
@@ -30,7 +32,7 @@ int fprintclip(FILE *out)
 {
 	HANDLE data = GetClipboardData(CF_TEXT);
 	if(data == NULL) {
-		fprintf(stderr, "Failed to retrieve clipboard data.\n");
+		fprintf(stderr, "%s: Failed to retrieve clipboard data.", command);
 		exit(1);
 	}
 	char *str = GlobalLock(data);
@@ -43,31 +45,33 @@ int fprintclip(FILE *out)
 
 int fsetclip(FILE *in)
 {
-	void *buffer, *gbuffer;
+	void *buffer, *globalbuffer;
 	size_t bufsize;
 	BOOL success;
 	HGLOBAL hglb;
-	int retval = 1;
+	int rc = 1;
 
 	buffer = freadtobuffer(in, &bufsize);
+	if(buffer == NULL)
+		return 1;
 
 	hglb = GlobalAlloc(GMEM_MOVEABLE, bufsize);
 	if(hglb == NULL) goto ret;
 
-	gbuffer = GlobalLock(hglb);
-	if(gbuffer == NULL) goto ret;
-	memcpy(gbuffer, buffer, bufsize);
+	globalbuffer = GlobalLock(hglb);
+	if(globalbuffer == NULL) goto ret;
+	memcpy(globalbuffer, buffer, bufsize);
 
-	EmptyClipboard();
+	EmptyClipboard(); /* Obviously required. */
 
 	if(SetClipboardData(CF_TEXT, hglb) != NULL)
-		retval = 0;
+		rc = 0;
 	else
 		GlobalFree(hglb);
 
 ret:
 	free(buffer);
-	return retval;
+	return rc;
 }
 
 void *freadtobuffer(FILE *in, size_t *retsize)
@@ -82,16 +86,20 @@ void *freadtobuffer(FILE *in, size_t *retsize)
 		buffer = realloc(buffer, size *= 2);
 		pos = buffer + offset;
 	}
-	if(offset)
-		((char *)buffer)[offset] = '\0';
+	if(offset == 0) {
+		free(buffer);
+		return NULL;
+	}
+	((char *)buffer)[offset] = '\0';
+	buffer = realloc(buffer, offset + 1);
 	if(retsize != NULL)
-		*retsize = size;
+		*retsize = offset + 1;
 	return buffer;
 }
 
 void usage(FILE *out)
 {
-	fprintf(out, "wclip [ -o | <file> ]\n");
+	fprintf(out, "%s [ -o | <file> ]", command);
 }
 
 int main(int argc, char *argv[])
@@ -99,9 +107,12 @@ int main(int argc, char *argv[])
 	int err, i;
 	FILE *file;
 
+	if(argc)
+		command = argv[0];
+
 	err = openclip();
 	if(err) {
-		fprintf(stderr, "Failed to open clipboard.");
+		fprintf(stderr, "%s: Failed to open clipboard.", command);
 		exit(1);
 	}
 	atexit(closeclip);
@@ -121,12 +132,10 @@ int main(int argc, char *argv[])
 		exit(0);
 	}
 
-	/* The binary flag prevents carriage returns from being omitted
-	 * in read operations. */
-	file = fopen(argv[1], "rb");
+	file = fopen(argv[1], "r");
 
 	if(file == NULL) {
-		fprintf(stderr, "wclip: %s", strerror(errno));
+		fprintf(stderr, "%s: %s", strerror(errno), command);
 		exit(1);
 	}
 	err = fsetclip(file);
