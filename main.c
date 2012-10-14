@@ -76,24 +76,42 @@ ret:
 
 void *freadtobuffer(FILE *in, size_t *retsize)
 {
-	void *buffer, *pos;
+	char *buffer;
 	size_t size = 256, offset = 0;
-	buffer = pos = malloc(size);
+	int c, prev = 0;
+
+	buffer = malloc(size);
+
 	for(;;) {
-		offset += fread(pos, 1, size + buffer - pos, in);
-		if(offset < size)
+		c = fgetc(in);
+
+		if(c == EOF)
 			break;
-		buffer = realloc(buffer, size *= 2);
-		pos = buffer + offset;
+		
+		if(c == '\n' && prev != '\r') {
+			buffer[offset++] = '\r';
+			if(offset == size)
+				buffer = realloc(buffer, size *= 2);
+		}
+
+		buffer[offset++] = c;
+		if(offset == size)
+			buffer = realloc(buffer, size *= 2);
+
+		prev = c;
 	}
+
 	if(offset == 0) {
 		free(buffer);
 		return NULL;
 	}
-	((char *)buffer)[offset] = '\0';
+
 	buffer = realloc(buffer, offset + 1);
+	((char *)buffer)[offset] = '\0';
+
 	if(retsize != NULL)
 		*retsize = offset + 1;
+
 	return buffer;
 }
 
